@@ -36,6 +36,12 @@ atlantis_crs <- atlantis_bgm$extra$projection
 atlantis_bbox <- atlantis_box %>% st_bbox()
 ```
 
+Check how many data points there are for each species, and which years we have surveys for.
+```{r}
+dat %>% select(SPECIES_COMMON_NAME) %>% group_by(SPECIES_COMMON_NAME) %>% tally() %>% arrange(desc(n))
+dat %>% select(SURVEY_YEAR) %>% distinct() %>% pull() %>% sort()
+```
+
 Extract dogfish.
 ```{r}
 #dat %>% select(SPECIES_COMMON_NAME) %>% distinct() %>% arrange(SPECIES_COMMON_NAME) %>%  pull()

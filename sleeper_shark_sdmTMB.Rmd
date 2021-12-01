@@ -264,7 +264,7 @@ atlantis_grid$estimates <- exp(predictions_sleep$data$est) #Back-transforming he
 atlantis_grid_sf <- atlantis_grid %>% mutate(x=x*1000,y=y*1000) %>% st_as_sf(coords = c("x", "y"), crs = atlantis_crs) # better for plots, multiplying the coordinates by 1000 for visualisation
 ```
 
-Not plotting most of Canada because the predictions look terrible (due to not having biomass data from there in this model).
+Plot.
 ```{r,  fig.width = 12, fig.height = 18}
 ggplot()+
   geom_sf(data = subset(atlantis_boxes), aes(fill = NULL))+
