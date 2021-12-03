@@ -456,4 +456,35 @@ rmse_cv <- sqrt(sum((sleep_corr$predictions - sleep_corr$npue)^2)/nrow(sleep_cor
 paste("Normalised RMSE:", paste0(rmse_cv, "%"), sep = " ")
 ```
 
-Not doing the biomass estimates.
+# Spatial standardization
+
+It is impossible to use NPUE from longline catches with a spatial connotation, but we can use it derive estimates of relative abundance by multiplying it by box area. Units of the area do not matter since this is not an abundance or biomass estimate, but rather an index of abundance in each box to be used to approximate the spatial distributions. It is approximate, but it may be better than the estimates that we get from sdmTMB, since those are based on very few observations, and we have none for BC anyway.
+```{r}
+sleep_s1_s4 <- atlantis_box %>%
+  left_join(means_all_years %>% st_set_geometry(NULL) %>% select(box_id,all_years_npue), by = 'box_id') %>%
+  mutate_at(vars(all_years_npue), replace_na, 0) %>%
+  mutate(prop=all_years_npue/sum(all_years_npue)) %>%
+  select(.bx0,boundary,botz,prop)
+
+# replace zeroes with min value
+min_prop <- sleep_s1_s4 %>% filter(prop>0 & boundary==F & botz<0) %>% pull(prop) %>% min()
+max_prop <- sleep_s1_s4 %>% filter(prop>0 & boundary==F & botz<0) %>% pull(prop) %>% max()
+
+box_no_sleep <- sleep_s1_s4 %>% filter(prop==0 & boundary==F & botz<0) %>% nrow()
+
+sleep_s1_s4$prop[sleep_s1_s4$prop==0 & sleep_s1_s4$boundary==F & sleep_s1_s4$botz<0] <- min_prop
+sleep_s1_s4$prop[sleep_s1_s4$prop==max_prop] <- sleep_s1_s4$prop[sleep_s1_s4$prop==max_prop] - (min_prop*box_no_sleep)
+```
+
+View.
+```{r}
+sleep_s1_s4 %>% ggplot()+
+  geom_sf(aes(fill=prop))+
+  scale_fill_viridis()+
+  theme_minimal()
+```
+
+Write this out.
+```{r}
+write.csv(sleep_s1_s4 %>% st_set_geometry(NULL), 'sleep_s1_s4.csv', row.names = FALSE)
+```
