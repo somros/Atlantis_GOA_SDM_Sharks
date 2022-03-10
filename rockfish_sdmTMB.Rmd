@@ -1,7 +1,7 @@
 ---
-title: "Sleeper sharks NPUE with sdmTMB - lat, lon, depth"
+title: "Rockfish NPUE with sdmTMB - lat, lon, depth"
 author: "Alberto Rovellini"
-date: "10/26/2021"
+date: "10/28/2021"
 output:
   html_document:
     code_folding: hide
@@ -22,7 +22,7 @@ library(data.table)
 
 # Purpose
 
-This document applies the sdmTMB routine to the IPHC FISS data filtered to focus on Pacific sleeper shark *Somniosus pacificus*. This is longline data that cannot be standardized by area like CPUE for the bottom trawl surveys could be. NPUE was calculated as number of individuals per hook for each soak. See file sleeper_shark_IPHC.Rmd for details on how the data for the models was created.
+This document applies the sdmTMB routine to the IPHC FISS data filtered to focus on Demersal Shelf and pelagic Shelf rockfish assemblages. This is longline data that cannot be standardized by area like CPUE for the bottom trawl surveys could be. NPUE was calculated as number of individuals per hook for each soak. See file rockfish_IPHC.Rmd for details on how the data for the models was created.
 
 Data received from the AKFIN team (Jean Lee) on October 22 2021.
 
@@ -34,7 +34,7 @@ select <- dplyr::select
 # Read data
 
 ```{r}
-sleep_data <- readRDS('../data/IPHC/sleep.RDS')
+rockfish_data <- readRDS('../data/IPHC/rockfish_rfd.RDS')
 ```
 
 Take a quick look at the data spatially.
@@ -42,14 +42,14 @@ Take a quick look at the data spatially.
 coast <- maps::map("worldHires", c("USA","Canada"), plot = FALSE, fill = TRUE)
 coast_sf <- coast %>% st_as_sf() #%>% st_transform(crs = atlantis_crs)
 
-sleep_bbox <- sleep_data %>% st_as_sf(coords=c('lon','lat'),crs=4326) %>% st_bbox()
+rockfish_bbox <- rockfish_data %>% st_as_sf(coords=c('lon','lat'),crs=4326) %>% st_bbox()
 
 ggplot()+
-  geom_point(data = sleep_data, aes(lon, lat, colour = log1p(npue)), size = 1.5)+
+  geom_point(data = rockfish_data, aes(lon, lat, colour = log1p(npue)), size = 1.5)+
   scale_colour_viridis_c()+
   #geom_polygon(data = coast, aes(x = long, y = lat, group = group), colour = "black", fill = "grey80")+
   geom_sf(data=coast_sf)+
-  coord_sf(xlim=c(sleep_bbox$xmin,sleep_bbox$xmax), ylim=c(sleep_bbox$ymin,sleep_bbox$ymax))+
+  coord_sf(xlim=c(rockfish_bbox$xmin,rockfish_bbox$xmax), ylim=c(rockfish_bbox$ymin,rockfish_bbox$ymax))+
   theme_minimal()+
   facet_wrap(~year, ncol = 2)+
   labs(title = "NPUE from IPHC surveys")
@@ -57,7 +57,7 @@ ggplot()+
 
 Take a quick look at time series of total CPUE from raw data
 ```{r}
-biom_year <- sleep_data %>% group_by(year) %>% summarise(npue = sum(npue))
+biom_year <- rockfish_data %>% group_by(year) %>% summarise(npue = sum(npue))
 
 ggplot(biom_year, aes(year, log(npue)))+
   geom_point()+
@@ -81,26 +81,26 @@ atlantis_bgm <- read_bgm('../data/GOA_WGS84_V4_final.bgm')
 # utilities
 atlantis_crs <- atlantis_bgm$extra$projection
 
-sleep_data_sf <- sleep_data %>% 
+rockfish_data_sf <- rockfish_data %>% 
   st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
   st_transform(crs = atlantis_crs)
 
 # now extract coordinates, and divide by 1000 to transform m to km
-sleep_coords <- sleep_data_sf %>% 
+rockfish_coords <- rockfish_data_sf %>% 
   st_coordinates() %>% 
   data.frame() %>% 
   mutate(x=X/1000,y=Y/1000) %>% 
   select(-X,-Y)
 
 # turn sf back to a data frame
-sleep_data <- sleep_data_sf %>% 
+rockfish_data <- rockfish_data_sf %>% 
   st_set_geometry(NULL) %>% 
-  data.frame(sleep_coords)
+  data.frame(rockfish_coords)
 ```
 
 Adding an `sf` object of the coastline to incorporate in the mesh.
 ```{r}
-data_bbox <- sleep_data_sf %>% st_bbox()
+data_bbox <- rockfish_data_sf %>% st_bbox()
 coast_mesh <- coast_sf %>% st_transform(crs=atlantis_bgm$extra$projection) %>%
   st_crop(data_bbox)
 ```
@@ -108,34 +108,33 @@ coast_mesh <- coast_sf %>% st_transform(crs=atlantis_bgm$extra$projection) %>%
 Using the "cutoff" argument, instead of predefining the number of points. T
 
 **Note:** SPDE = Stochastic Partial Differential Equations approach. Some material can be found [here](https://becarioprecario.bitbucket.io/spde-gitbook/ch-intro.html#sec:spde), but basically it is a way of calculating the position of the mesh knots. 
-
 ```{r}
-sleep_spde <- make_mesh(sleep_data, c("x", "y"), cutoff = 20, type = "cutoff")
+rockfish_spde <- make_mesh(rockfish_data, c("x", "y"), cutoff = 20, type = "cutoff")
 
 # add barrier
-sleep_spde <- add_barrier_mesh(
-  spde_obj = sleep_spde,
+rockfish_spde <- add_barrier_mesh(
+  spde_obj = rockfish_spde,
   barrier_sf = coast_mesh,
   range_fraction = 0.1,
   proj_scaling = 1000, # data km but projection m
   plot = TRUE
 )
 
-sleep_spde$mesh$n
+rockfish_spde$mesh$n
 ```
 
 Check out the distribution of the biomass response variable.
 ```{r}
-hist(sleep_data$npue, breaks = 30)
+hist(rockfish_data$npue, breaks = 30)
 ```
 
 ```{r}
-hist(log1p(sleep_data$npue), breaks = 30)
+hist(log1p(rockfish_data$npue), breaks = 30)
 ```
 
 Proportion of zeroes in percentage.
 ```{r}
-length(which(sleep_data$npue == 0))/nrow(sleep_data)*100
+length(which(rockfish_data$npue == 0))/nrow(rockfish_data)*100
 ```
 
 ## Space, time, and depth model.
@@ -146,9 +145,9 @@ Try running a model with smooth term for depth. Using 5 knots for the smooth - b
 
 ```{r, results = FALSE}
 m_depth <- sdmTMB(
-    data = sleep_data, 
+    data = rockfish_data, 
     formula = npue ~ 0 + s(depth, k = 5) + as.factor(year), 
-    mesh = sleep_spde, 
+    mesh = rockfish_spde, 
     time = "year", 
     spatial = 'on',
     spatiotemporal = 'iid', # spatiotemporal random fields independent and identically distributed
@@ -163,9 +162,9 @@ Rerun with extra optimization steps in case of gradient > 0.001.
 if(abs(max(m_depth$gradients))>0.001){
   
   m_depth <- sdmTMB(
-    data = sleep_data, 
+    data = rockfish_data, 
     formula = npue ~ 0 + s(depth, k = 5) + as.factor(year), 
-    mesh = sleep_spde, 
+    mesh = rockfish_spde, 
     time = "year", 
     spatial = 'on',
     spatiotemporal = 'iid', # spatiotemporal random fields independent and identically distributed
@@ -191,17 +190,17 @@ Interestingly, increasing the number of knots in the mesh does not necessarily s
 
 Check out model residuals. 
 ```{r}
-sleep_data$resids <- residuals(m_depth) # randomized quantile residuals
-hist(sleep_data$resids)
+rockfish_data$resids <- residuals(m_depth) # randomized quantile residuals
+hist(rockfish_data$resids)
 ```
 
 And QQ plot.
 ```{r}
-qqnorm(sleep_data$resids)
+qqnorm(rockfish_data$resids)
 abline(a = 0, b = 1)
 ```
 
-Plot the response curve from the depth smooth term.
+Plot the response curve from the depth smooth term. With 3/10/2022 install something has changed with this function, it takes a very long time to produce a plot and produces a couple of warnings - plus the plot looks substantially different from how it used to (but is it the model?).
 ```{r}
 plot_smooth(m_depth, ggplot = T)
 ```
@@ -210,19 +209,20 @@ Finally, plot the residuals in space. If residuals are constantly larger/smaller
 
 For visualisation purposes, multiply the coordinates by 1000 in the sf object to restore the correct scale.
 ```{r, fig.width = 12, fig.height=18}
-sleep_sf <- sleep_data %>% mutate(x = x*1000, y = y*1000) %>% st_as_sf(coords = c(x = "x", y = "y"), crs = atlantis_crs) #%>% st_transform(crs = atlantis_bgm$extra$projection) # turn to spatial object
+rockfish_sf <- rockfish_data %>% mutate(x = x*1000, y = y*1000) %>% st_as_sf(coords = c(x = "x", y = "y"), crs = atlantis_crs) #%>% st_transform(crs = atlantis_bgm$extra$projection) # turn to spatial object
 # 
 coast_sf1 <- coast_sf %>% st_transform(crs = atlantis_crs)
 
 ggplot()+
-  geom_sf(data = sleep_sf, aes(color = resids, alpha = .8))+
+  geom_sf(data = rockfish_sf, aes(color = resids, alpha = .8))+
   scale_color_viridis()+
   # geom_sf(data=coast_sf1)+
-  # coord_sf(xlim=c(sleep_bbox$xmin,sleep_bbox$xmax), ylim=c(sleep_bbox$ymin,sleep_bbox$ymax))+
+  # coord_sf(xlim=c(rockfish_bbox$xmin,rockfish_bbox$xmax), ylim=c(rockfish_bbox$ymin,rockfish_bbox$ymax))+
   theme_minimal()+
   labs(title = "model residuals in space")+
   facet_wrap(~year, ncol = 2)
 ```
+Is there a pattern of consistently negative residuals around Yakutat?
 
 # Predictions from SDM
 
@@ -243,7 +243,7 @@ load('../data/atlantis_grid_depth.Rdata')
 paste("Positive depths are:", length(which(atlantis_grid_depth$depth>0)), "out of:", nrow(atlantis_grid_depth), sep = " ") # Write out a check that depths are positive (few negatives are OK - they are on land - I'll fix it but it should not matter as island boxes will be boundary boxes in Atlantis so predictions will not matter for those)
 
 # add year column
-all_years <- levels(factor(sleep_data$year))
+all_years <- levels(factor(rockfish_data$year))
 
 atlantis_grid <- atlantis_grid_depth[rep(1:nrow(atlantis_grid_depth), length(all_years)),]
 atlantis_grid$year <- as.integer(rep(all_years, each = nrow(atlantis_grid_depth)))
@@ -271,19 +271,19 @@ atlantis_grid <- atlantis_grid %>% mutate(x = x/1000, y = y/1000)
 
 Make SDM predictions onto new data from depth model. **Back-transforming here**
 ```{r}
-predictions_sleep <- predict(m_depth, newdata = atlantis_grid, return_tmb_object = TRUE)
-atlantis_grid$estimates <- exp(predictions_sleep$data$est) #Back-transforming here
+predictions_rockfish <- predict(m_depth, newdata = atlantis_grid, return_tmb_object = TRUE)
+atlantis_grid$estimates <- exp(predictions_rockfish$data$est) #Back-transforming here
 
 atlantis_grid_sf <- atlantis_grid %>% mutate(x=x*1000,y=y*1000) %>% st_as_sf(coords = c("x", "y"), crs = atlantis_crs) # better for plots, multiplying the coordinates by 1000 for visualisation
 ```
 
-Plot.
+View.
 ```{r,  fig.width = 12, fig.height = 18}
 ggplot()+
   geom_sf(data = subset(atlantis_boxes), aes(fill = NULL))+
   geom_sf(data = subset(atlantis_grid_sf), aes(color=log1p(estimates)))+ # taking the log for visualisation
   # geom_sf(data=coast_sf)+
-  # coord_sf(xlim=c(sleep_bbox$xmin,sleep_bbox$xmax), ylim=c(sleep_bbox$ymin,sleep_bbox$ymax))+
+  # coord_sf(xlim=c(rockfish_bbox$xmin,rockfish_bbox$xmax), ylim=c(rockfish_bbox$ymin,rockfish_bbox$ymax))+
   scale_color_viridis(name = expression(paste("Log(NPUE) ind ", hook^-1)))+
   theme_minimal()+
   labs(title = "Predicted NPUE")+
@@ -316,7 +316,7 @@ ggplot()+
 Plot the raw data again for comparison.
 ```{r, fig.width = 12, fig.height = 18}
 ggplot()+
-  geom_sf(data = sleep_data_sf, aes(colour = log1p(npue)), size = 1.5, alpha = .5)+
+  geom_sf(data = rockfish_data_sf, aes(colour = log1p(npue)), size = 1.5, alpha = .5)+
   scale_colour_viridis_c(name = expression(paste("Log(NPUE) ind ", hook^-1)))+
   #geom_sf(data = coast_sf, colour = "black", fill = "grey80")+
   theme_minimal()+
@@ -326,7 +326,7 @@ ggplot()+
 
 Have a look at CPUE by depth. This is rough and quick, keep in mind that most tows happen shallower than 300 m, so the sample is not equal between depths.
 ```{r}
-ggplot(data = sleep_data, aes(x = depth, y = log1p(npue)))+
+ggplot(data = rockfish_data, aes(x = depth, y = log1p(npue)))+
   scale_color_viridis()+
   geom_point()+
   theme_minimal()+
@@ -335,7 +335,7 @@ ggplot(data = sleep_data, aes(x = depth, y = log1p(npue)))+
 
 Plot data and predictions distributions. These are the data.
 ```{r}
-ggplot(data = sleep_data, aes(x = log1p(npue)))+
+ggplot(data = rockfish_data, aes(x = log1p(npue)))+
   geom_histogram(colour = "black", fill = 'grey80', bins = 30)+
   theme_minimal()
 ```
@@ -360,7 +360,10 @@ ggplot()+
   theme_minimal()+
   labs(title = "Mean predicted NPUE by Atlantis box (1998-2019)")
 ```
-Highest abundances are in the Shelikof Strait. This actually does not look too dissimilar from what the bottom trawl surveys had found. ![Map produced by the sdmTMB workflow for the RACE-GAP bottom trawl data](../data/demersal_sharks_bottom_trawl.png) And both look reasonable with the spatial distribution of the sleeper shark catch presented in the shark stock assessment for the GOA. ![Sleeper sharks stock assessment](../data/sleeper_ctahces_stock_assessment.png)
+
+**Demersal shelf assemblage**: This is very similar to what we get out of the bias corrected bottom trawl surveys, except in the IPHC the biomass in BC is higher. 
+
+![RACE sdmTMB](../data/Rockfish_demersal_shelfA.jpg).
 
 Let's have a look at the variance per box over all years. We use the coefficient of variation, because NPUE varies widely between boxes.
 ```{r, fig.width = 10, fig.height = 5}
@@ -373,7 +376,7 @@ ggplot()+
   theme_minimal()+
   labs(title = "CV of predicted NPUE by Atlantis box (1998-2019)")
 ```
-Very high CV all around. 
+The high CV in the Shelikof Strait reflects the fact that catches in the IPHC data have increased in that area recently. 
 
 Let's see how estimated CPUE changes over time, per box.
 ```{r, fig.width = 12, fig.height = 18}
@@ -394,31 +397,31 @@ Trying to evaluate model skill by having a look at how well model predictions al
 Since this is a spatially-explicit approach, we need observations and predictions at the same location. We use the locations of all IPHC soaks as a prediction grid.   
 ```{r}
 #make a prediction grid from the race data itself
-sleep_grid_tmp <- sleep_data %>% dplyr::select(x, y, depth)
+rockfish_grid_tmp <- rockfish_data %>% dplyr::select(x, y, depth)
 
 # add year
-sleep_grid <- sleep_grid_tmp[rep(1:nrow(sleep_grid_tmp), length(all_years)),]
-sleep_grid$year <- as.integer(rep(all_years, each = nrow(sleep_grid_tmp)))
+rockfish_grid <- rockfish_grid_tmp[rep(1:nrow(rockfish_grid_tmp), length(all_years)),]
+rockfish_grid$year <- as.integer(rep(all_years, each = nrow(rockfish_grid_tmp)))
 
 # predict on this grid
-predictions_at_locations <- predict(m_depth, newdata = sleep_grid, return_tmb_object = TRUE)
-sleep_grid$predictions <- exp(predictions_at_locations$data$est) # back-transforming here
+predictions_at_locations <- predict(m_depth, newdata = rockfish_grid, return_tmb_object = TRUE)
+rockfish_grid$predictions <- exp(predictions_at_locations$data$est) # back-transforming here
 ```
 
 Now join by year and coordinates to have predictions at the sampling points. 
 ```{r, fig.width = 12, fig.height = 6}
-sleep_corr <- sleep_data %>% left_join(sleep_grid, by = c("year", "y", "x"))
+rockfish_corr <- rockfish_data %>% left_join(rockfish_grid, by = c("year", "y", "x"))
 ```
 
 ## Observed versus predicted
 
 ```{r}
-paste0("Pearson's coef observations vs predictions: ", cor(sleep_corr$npue, sleep_corr$predictions, use = "everything", method = "pearson"))
+paste0("Pearson's coef observations vs predictions: ", cor(rockfish_corr$npue, rockfish_corr$predictions, use = "everything", method = "pearson"))
 ```
 
 Plot.
 ```{r, fig.width = 12, fig.height = 12}
-ggplot(sleep_corr, aes(x = log1p(npue), y = log1p(predictions)))+ # log for visualisation
+ggplot(rockfish_corr, aes(x = log1p(npue), y = log1p(predictions)))+ # log for visualisation
   geom_point(aes(color = depth.y))+
   scale_color_viridis()+
   geom_abline(intercept = 0, slope = 1)+
@@ -431,7 +434,7 @@ These models often underpredict zeroes, i.e. they predict a catch where there wa
 
 Plot zero catch from the data and the relative predictions. Turn to sf for plotting.
 ```{r, fig.width = 12, fig.height = 18}
-sleep_corr %>% filter(npue == 0) %>%
+rockfish_corr %>% filter(npue == 0) %>%
   mutate(x=x*1000,y=y*1000) %>%
   st_as_sf(coords = c(x = "x", y = "y"), crs = atlantis_bgm$extra$projection) %>%
   ggplot()+
@@ -445,7 +448,7 @@ sleep_corr %>% filter(npue == 0) %>%
 
 What about the relationship between model residuals and depth?
 ```{r, fig.width = 12, fig.height=16}
-sleep_data %>%
+rockfish_data %>%
   ggplot()+
   geom_point(aes(x = depth, y = resids, color = log1p(npue)))+
   geom_hline(yintercept = 0, color = "red", linetype = "dashed")+
@@ -460,44 +463,13 @@ There does not seem to be an obvious relationship between depth and residuals.
 
 Calculate RMSE between predicted and observed values.
 ```{r}
-paste("RMSE:", sqrt(sum((sleep_corr$predictions - sleep_corr$npue)^2)/nrow(sleep_corr)), " ind hook-1", sep = " ") ### traditional rmse metric, in units kg km2
+paste("RMSE:", sqrt(sum((rockfish_corr$predictions - rockfish_corr$npue)^2)/nrow(rockfish_corr)), " ind hook-1", sep = " ") ### traditional rmse metric, in units kg km2
 ```
 
 Normalised RMSE. 
 ```{r}
-rmse_cv <- sqrt(sum((sleep_corr$predictions - sleep_corr$npue)^2)/nrow(sleep_corr))/(max(sleep_corr$npue)-min(sleep_corr$npue))*100 #### normalised rmse, expressed as a % of the range of observed biomass values, sort of approximates a coefficient of variation 
+rmse_cv <- sqrt(sum((rockfish_corr$predictions - rockfish_corr$npue)^2)/nrow(rockfish_corr))/(max(rockfish_corr$npue)-min(rockfish_corr$npue))*100 #### normalised rmse, expressed as a % of the range of observed biomass values, sort of approximates a coefficient of variation 
 paste("Normalised RMSE:", paste0(rmse_cv, "%"), sep = " ")
 ```
 
-# Spatial standardization
-
-It is impossible to use NPUE from longline catches with a spatial connotation, but we can use it derive estimates of relative abundance by multiplying it by box area. Units of the area do not matter since this is not an abundance or biomass estimate, but rather an index of abundance in each box to be used to approximate the spatial distributions. It is approximate, but it may be better than the estimates that we get from sdmTMB, since those are based on very few observations, and we have none for BC anyway.
-```{r}
-sleep_s1_s4 <- atlantis_boxes %>%
-  left_join(means_all_years %>% st_set_geometry(NULL) %>% select(box_id,all_years_npue), by = 'box_id') %>%
-  mutate_at(vars(all_years_npue), replace_na, 0) %>%
-  mutate(prop=all_years_npue/sum(all_years_npue)) %>%
-  select(.bx0,boundary,botz,prop)
-
-# replace zeroes with min value
-min_prop <- sleep_s1_s4 %>% filter(prop>0 & boundary==F & botz<0) %>% pull(prop) %>% min()
-max_prop <- sleep_s1_s4 %>% filter(prop>0 & boundary==F & botz<0) %>% pull(prop) %>% max()
-
-box_no_sleep <- sleep_s1_s4 %>% filter(prop==0 & boundary==F & botz<0) %>% nrow()
-
-sleep_s1_s4$prop[sleep_s1_s4$prop==0 & sleep_s1_s4$boundary==F & sleep_s1_s4$botz<0] <- min_prop
-sleep_s1_s4$prop[sleep_s1_s4$prop==max_prop] <- sleep_s1_s4$prop[sleep_s1_s4$prop==max_prop] - (min_prop*box_no_sleep)
-```
-
-View.
-```{r}
-sleep_s1_s4 %>% ggplot()+
-  geom_sf(aes(fill=prop))+
-  scale_fill_viridis()+
-  theme_minimal()
-```
-
-Write this out.
-```{r}
-write.csv(sleep_s1_s4 %>% st_set_geometry(NULL), 'sleep_s1_s4_1.csv', row.names = FALSE)
-```
+Not doing the biomass estimates.
