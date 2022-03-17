@@ -18,6 +18,11 @@ library(maps)
 library(mapdata)
 ```
 
+```{r}
+select <- dplyr::select
+```
+
+
 This document produces *qualitative* maps for spatial distributions of salmon sharks in the GOA based on [Weng et al. (2008)](https://doi.org/10.3354/meps07706). 
 
 This is based on Figure 4 of the paper. ![Fig. 4](../weng_fig4.png). 
@@ -58,7 +63,7 @@ spring <- data.frame('.bx0'=c(64,61,55,60,63,
 
 Need to assign 0.5, 0.3, 0.15, and 0.05 to 1, 2, 3, and 4 respectively. To do so, calculate the total area of the kernel, divide each box area by it, and divide the kernel density by that proportion.
 ```{r}
-all_boxes <- atlantis_boxes %>% st_set_geometry(NULL) %>% select(.bx0,botz,area,boundary)
+all_boxes <- atlantis_box %>% st_set_geometry(NULL) %>% select(.bx0,botz,area,boundary)
 
 prop_template <- data.frame('use'= 0:4, 'kernel'=c(0,0.5,0.3,0.15,0.05))
 
@@ -74,7 +79,8 @@ summer <- summer %>%
   group_by(use) %>%
   mutate(kernel_area = sum(area),
          prop_area = area/kernel_area,
-         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new)
+         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new) %>%
+  ungroup()
 
 fall <- fall %>% 
   full_join(all_boxes) %>% 
@@ -88,7 +94,8 @@ fall <- fall %>%
   group_by(use) %>%
   mutate(kernel_area = sum(area),
          prop_area = area/kernel_area,
-         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new)
+         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new) %>%
+  ungroup()
 
 winter <- winter %>% 
   full_join(all_boxes) %>% 
@@ -102,7 +109,8 @@ winter <- winter %>%
   group_by(use) %>%
   mutate(kernel_area = sum(area),
          prop_area = area/kernel_area,
-         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new)
+         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new) %>%
+  ungroup()
 
 spring <- spring %>% 
   full_join(all_boxes) %>% 
@@ -116,7 +124,8 @@ spring <- spring %>%
   group_by(use) %>%
   mutate(kernel_area = sum(area),
          prop_area = area/kernel_area,
-         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new)
+         kernel_new = kernel*prop_area) %>% select(.bx0,s,kernel_new) %>%
+  ungroup()
 ```
 
 What we got here are the S1-S4 proportions per box. View
@@ -133,9 +142,9 @@ atlantis_box %>% full_join(all_seasons, by = '.bx0') %>%
 
 Write out.
 ```{r}
-write.csv(winter,'salmon_shark_s1.csv', row.names = FALSE)
-write.csv(spring,'salmon_shark_s2.csv', row.names = FALSE)
-write.csv(summer,'salmon_shark_s3.csv', row.names = FALSE)
-write.csv(fall,'salmon_shark_s4.csv', row.names = FALSE)
+write.csv((winter %>% select(.bx0, kernel_new) %>% set_names(c('.bx0','S'))),'../output/salmon_shark_s1.csv', row.names = FALSE)
+write.csv((spring %>% select(.bx0, kernel_new) %>% set_names(c('.bx0','S'))),'../output/salmon_shark_s2.csv', row.names = FALSE)
+write.csv((summer %>% select(.bx0, kernel_new) %>% set_names(c('.bx0','S'))),'../output/salmon_shark_s3.csv', row.names = FALSE)
+write.csv((fall %>% select(.bx0, kernel_new) %>% set_names(c('.bx0','S'))),'../output/salmon_shark_s4.csv', row.names = FALSE)
 ```
 
