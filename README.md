@@ -4,6 +4,6 @@ This code produces spatial distribution of salmon and Pacific sleeper sharks, re
 
 Seasonal spatial distributions for salmon sharks are approximated from the kernel density predictions from [Weng et al. (2008)](https://doi.org/10.3354/meps07706).  
 
-Spatial distributions (constant over time) for sleeper sharks are modeled with sdmTMB and International Pacific Halibut Commission (IPHC) Fishery-Independent Setline Survey ([FISS](https://iphc.int/data/fiss-data-query)) data. 
+Spatial distributions (constant over time) for sleeper sharks are modeled with `sdmTMB` and International Pacific Halibut Commission (IPHC) Fishery-Independent Setline Survey ([FISS](https://iphc.int/data/fiss-data-query)) data. 
 
 Juveniles and adults were assumed to have the same spatial distributions.
